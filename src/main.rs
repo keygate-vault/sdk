@@ -1,6 +1,9 @@
 use ic_agent::{export::Principal, identity::Secp256k1Identity, Agent, Identity};
 use anyhow::{Error, Result};
 
+#[cfg(test)]
+mod tests;
+
 pub async fn create_agent(url: &str, is_mainnet: bool) -> Result<Agent> {
     let agent = Agent::builder().with_url(url).build()?;
     if !is_mainnet {
@@ -31,7 +34,12 @@ impl KeygateClient {
         Ok(Self { agent })
     }
 
+    pub async fn get_icp_balance(&self) -> Result<u64> {
+        panic!("Not implemented")
+    }
+
     pub async fn create_wallet(&self) -> Result<(Principal, String)> {
+        // deploy a new wallet
         panic!("Not implemented");
     }
 
@@ -47,8 +55,14 @@ impl KeygateClient {
 #[tokio::main]
 async fn main() -> Result<()> {
     let identity = load_identity("identity.pem").await?;
+    println!("Loaded identity.");
+
     let keygate = KeygateClient::new(identity, "https://ic0.app").await?;
-    
-    println!("Hello, world!");
+    println!("Created Keygate client.");
+
+    let (wallet_id, icp_account) = keygate.create_wallet().await?;
+    println!("Created wallet with ID: {}", wallet_id);
+    println!("Icp account: {}", icp_account);
+
     Ok(())
 }
