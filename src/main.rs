@@ -1,5 +1,6 @@
 use ic_agent::{export::Principal, identity::Secp256k1Identity, Agent, Identity};
 use anyhow::{Error, Result};
+use dotenv::dotenv;
 
 #[cfg(test)]
 mod tests;
@@ -35,6 +36,10 @@ impl KeygateClient {
     }
 
     pub async fn get_icp_balance(&self) -> Result<u64> {
+        let icp_balance_canister_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?;
+
+        let icp_balance_query = self.agent.query(&icp_balance_canister_id, "icp_balance").call().await?;
+        
         panic!("Not implemented")
     }
 
@@ -54,6 +59,8 @@ impl KeygateClient {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenv().ok();
+
     let identity = load_identity("identity.pem").await?;
     println!("Loaded identity.");
 
