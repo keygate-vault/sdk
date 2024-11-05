@@ -1,9 +1,14 @@
 use anyhow::{Error, Ok, Result};
 use ic_agent::{export::Principal, identity::Secp256k1Identity, Agent, Identity};
+<<<<<<< HEAD
 use ic_utils::call::AsyncCall;
 use ic_utils::interfaces::ManagementCanister;
 use ic_utils::Canister;
 use serde_cbor::to_vec;
+=======
+use anyhow::{Error, Result};
+use dotenv::dotenv;
+>>>>>>> 3fd094905ddb84c55f251dfbef20aa4e0d99884a
 
 #[cfg(test)]
 mod tests;
@@ -46,6 +51,7 @@ impl KeygateClient {
         Ok(Self { agent })
     }
 
+<<<<<<< HEAD
     pub async fn get_icp_balance(&self) -> Result<Vec<u8>> {
         // Define the canister ID for the ledger
         let canister_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?;
@@ -66,6 +72,14 @@ impl KeygateClient {
 
         self.agent.get_principal().await?;
         Ok(query)
+=======
+    pub async fn get_icp_balance(&self) -> Result<u64> {
+        let icp_balance_canister_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?;
+
+        let icp_balance_query = self.agent.query(&icp_balance_canister_id, "icp_balance").call().await?;
+        
+        panic!("Not implemented")
+>>>>>>> 3fd094905ddb84c55f251dfbef20aa4e0d99884a
     }
 
     pub async fn create_wallet(&self) -> Result<Principal> {
@@ -131,6 +145,8 @@ impl KeygateClient {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenv().ok();
+
     let identity = load_identity("identity.pem").await?;
     println!("Loaded identity.");
 
