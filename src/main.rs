@@ -1,14 +1,9 @@
 use anyhow::{Error, Ok, Result};
 use ic_agent::{export::Principal, identity::Secp256k1Identity, Agent, Identity};
-<<<<<<< HEAD
-use ic_utils::call::AsyncCall;
+use ic_utils::call::{AsyncCall, SyncCall};
 use ic_utils::interfaces::ManagementCanister;
 use ic_utils::Canister;
 use serde_cbor::to_vec;
-=======
-use anyhow::{Error, Result};
-use dotenv::dotenv;
->>>>>>> 3fd094905ddb84c55f251dfbef20aa4e0d99884a
 
 #[cfg(test)]
 mod tests;
@@ -24,8 +19,8 @@ pub async fn create_agent(url: &str, is_mainnet: bool) -> Result<Agent> {
 pub async fn load_identity(path: &str) -> Result<Secp256k1Identity> {
     let identity = Secp256k1Identity::from_pem_file(path);
     match identity {
-        Ok(identity) => Ok(identity),
-        Err(e) => anyhow::bail!("Failed to load identity: {}", e),
+        core::result::Result::Ok(identity) => Ok(identity),
+        core::result::Result::Err(e) => anyhow::bail!("Failed to load identity: {}", e),
     }
 }
 
@@ -33,11 +28,11 @@ pub struct KeygateClient {
     agent: Agent,
 }
 
-fn gzip(blob: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn gzip(blob: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
     use libflate::gzip::Encoder;
     use std::io::Write;
     let mut encoder = Encoder::new(Vec::with_capacity(blob.len())).unwrap();
-    encoder.write_all(&blob)?;
+    encoder.write_all(&blob).unwrap();
     Ok(encoder.finish().into_result().unwrap())
 }
 
@@ -51,7 +46,6 @@ impl KeygateClient {
         Ok(Self { agent })
     }
 
-<<<<<<< HEAD
     pub async fn get_icp_balance(&self) -> Result<Vec<u8>> {
         // Define the canister ID for the ledger
         let canister_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?;
@@ -70,16 +64,8 @@ impl KeygateClient {
             .call()
             .await?;
 
-        self.agent.get_principal().await?;
+        // self.agent.get_principal().await?;
         Ok(query)
-=======
-    pub async fn get_icp_balance(&self) -> Result<u64> {
-        let icp_balance_canister_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?;
-
-        let icp_balance_query = self.agent.query(&icp_balance_canister_id, "icp_balance").call().await?;
-        
-        panic!("Not implemented")
->>>>>>> 3fd094905ddb84c55f251dfbef20aa4e0d99884a
     }
 
     pub async fn create_wallet(&self) -> Result<Principal> {
@@ -133,9 +119,8 @@ impl KeygateClient {
             .with_canister_id(wallet_id)
             .build()
             .unwrap();
-        let account_id = (wallet.query("get_icp_account")).call().await?;
-
-        Ok("Not implemented".to_string())
+        let account_id: (String, ) = wallet.query("get_icp_account").build().call().await?;
+        Ok(account_id.0)
     }
 
     pub async fn execute_transaction(&self, wallet_id: &str, transaction: &str) -> Result<String> {
@@ -145,8 +130,6 @@ impl KeygateClient {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv().ok();
-
     let identity = load_identity("identity.pem").await?;
     println!("Loaded identity.");
 
@@ -157,8 +140,8 @@ async fn main() -> Result<()> {
     let wallet_id = keygate.create_wallet().await?;
     println!("Created wallet with ID: {}", wallet_id);
 
-    let balance = keygate.get_icp_balance().await?;
-    println!("Balance: {:?}", balance);
+    let account_id = keygate.get_icp_account(&wallet_id.to_string()).await?;
+    println!("Account ID: {}", account_id);
 
     Ok(())
 }
