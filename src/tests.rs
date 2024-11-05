@@ -15,9 +15,8 @@ mod tests {
     async fn test_create_wallet() -> Result<()> {
         let identity = load_identity("identity.pem").await?;
         let keygate = KeygateClient::new(identity, "https://ic0.app").await?;
-        let (wallet_id, icp_account) = keygate.create_wallet().await?;
+        let wallet_id = keygate.create_wallet().await?;
         assert!(!wallet_id.to_string().is_empty());
-        assert!(!icp_account.is_empty());
         Ok(())
     }
 }
