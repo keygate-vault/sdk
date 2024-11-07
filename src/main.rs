@@ -2,15 +2,13 @@ use std::io::Error;
 use std::str::FromStr;
 
 use candid::{CandidType, Decode};
-use ic_agent::export::PrincipalError;
-use ic_agent::{export::Principal, identity::Secp256k1Identity, Agent, Identity};
-use ic_ledger_types::{
-    account_balance, AccountBalanceArgs, AccountIdentifier, Subaccount, DEFAULT_SUBACCOUNT,
-};
+use ic_agent::agent::CallResponse;
+use ic_agent::{export::Principal, identity::Secp256k1Identity, Agent};
+use ic_ledger_types::{AccountBalanceArgs, AccountIdentifier, DEFAULT_SUBACCOUNT};
 use ic_utils::call::{AsyncCall, SyncCall};
 use ic_utils::interfaces::ManagementCanister;
 use ic_utils::Canister;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 mod tests;
@@ -51,6 +49,51 @@ struct ICPAccountBalanceArgs {
 #[derive(CandidType, Deserialize)]
 struct BalanceResponse {
     e8s: u64,
+}
+
+#[derive(Deserialize, CandidType, Serialize, Debug, Clone, PartialEq)]
+pub enum TransactionType {
+    Swap,
+    Transfer,
+}
+#[derive(Deserialize, Serialize, CandidType, Debug, Clone, PartialEq)]
+pub enum SupportedNetwork {
+    ICP,
+    ETH,
+}
+
+pub type TokenPath = String;
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct ProposeTransactionArgs {
+    pub to: String,
+    pub token: TokenPath,
+    pub transaction_type: TransactionType,
+    pub network: SupportedNetwork,
+    pub amount: f64,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct ProposedTransaction {
+    pub id: u64,
+    pub to: String,
+    pub token: TokenPath,
+    pub network: SupportedNetwork,
+    pub amount: f64,
+    pub transaction_type: TransactionType,
+    pub signers: Vec<Principal>,
+    pub rejections: Vec<Principal>,
+}
+
+#[derive(
+    CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, strum_macros::IntoStaticStr,
+)]
+pub enum IntentStatus {
+    Pending(String),
+    InProgress(String),
+    Completed(String),
+    Rejected(String),
+    Failed(String),
 }
 
 impl KeygateClient {
@@ -147,6 +190,7 @@ impl KeygateClient {
             .with_canister_id(wallet_id)
             .build()
             .unwrap();
+
         let account_id: (String,) = wallet
             .query("get_icp_account")
             .build()
@@ -159,9 +203,54 @@ impl KeygateClient {
     pub async fn execute_transaction(
         &self,
         wallet_id: &str,
-        transaction: &str,
-    ) -> Result<String, Error> {
-        panic!("Not implemented");
+        transaction: &ProposeTransactionArgs,
+    ) -> Result<IntentStatus, Error> {
+        let wallet = Canister::builder()
+            .with_agent(&self.agent)
+            .with_canister_id(wallet_id)
+            .build()
+            .unwrap();
+
+        // let encoded_args = candid::encode_args((transaction.clone(),)).unwrap();
+        let proposed_transaction: CallResponse<(ProposedTransaction,)> = wallet
+            .update("propose_transaction")
+            .with_arg(transaction.clone())
+            .build()
+            .call()
+            .await
+            .unwrap();
+        let response: ProposedTransaction;
+        match proposed_transaction {
+            CallResponse::Response((proposed_transaction,)) => response = proposed_transaction,
+            CallResponse::Poll(_) => {
+                return Err(Error::new(
+                    std::io::ErrorKind::Other,
+                    "Transaction is still pending",
+                ));
+            }
+        };
+
+        let threshold: (u64,) = wallet.query("get_threshold").build().call().await.unwrap();
+        let intent_response: CallResponse<(IntentStatus,)>;
+        if threshold.0 <= 1 {
+            intent_response = wallet
+                .update("execute_transaction")
+                .with_arg(response.id)
+                .build()
+                .call()
+                .await
+                .unwrap();
+        } else {
+            return Err(Error::new(std::io::ErrorKind::Other, "Transaction failed"));
+        }
+
+        match intent_response {
+            CallResponse::Response((status,)) => Ok(status),
+            CallResponse::Poll(_) => Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Transaction is still pending",
+            )),
+        }
     }
 }
 
@@ -182,6 +271,18 @@ async fn main() -> Result<(), Error> {
 
     let balance = keygate.get_icp_balance(&wallet_id.to_string()).await?;
     println!("Balance: {:?}", balance);
+
+    let transaction = ProposeTransactionArgs {
+        to: account_id.to_string(),
+        token: "icp:native".to_string(),
+        transaction_type: TransactionType::Transfer,
+        network: SupportedNetwork::ICP,
+        amount: f64::from(0),
+    };
+    let executed_transaction = keygate
+        .execute_transaction(&wallet_id.to_string(), &transaction)
+        .await?;
+    println!("Transaction status: {:?}", executed_transaction);
 
     Ok(())
 }
