@@ -1,8 +1,12 @@
 use std::io::Error;
+use std::str::FromStr;
 
-use candid::CandidType;
+use candid::{CandidType, Decode};
 use ic_agent::export::PrincipalError;
 use ic_agent::{export::Principal, identity::Secp256k1Identity, Agent, Identity};
+use ic_ledger_types::{
+    account_balance, AccountBalanceArgs, AccountIdentifier, Subaccount, DEFAULT_SUBACCOUNT,
+};
 use ic_utils::call::{AsyncCall, SyncCall};
 use ic_utils::interfaces::ManagementCanister;
 use ic_utils::Canister;
@@ -44,6 +48,11 @@ struct ICPAccountBalanceArgs {
     account: Vec<u8>,
 }
 
+#[derive(CandidType, Deserialize)]
+struct BalanceResponse {
+    e8s: u64,
+}
+
 impl KeygateClient {
     pub async fn new(identity: Secp256k1Identity, url: &str) -> Result<Self, Error> {
         let agent = Agent::builder()
@@ -55,30 +64,36 @@ impl KeygateClient {
         Ok(Self { agent })
     }
 
-    pub async fn get_icp_balance(&self, wallet_id: &str) -> Result<Vec<u8>, Error> {
+    pub async fn get_icp_balance(&self, wallet_id: &str) -> Result<u64, Error> {
         // Define the canister ID for the ledger
         let canister_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
-        
-        // Replace "your_account_identifier" with the actual account identifier
-        let account_identifier = self.get_icp_account(wallet_id).await?;
+        // // Replace "your_account_identifier" with the actual account identifier
+        let account_identifier = AccountIdentifier::new(
+            &Principal::from_str(&wallet_id).unwrap(),
+            &DEFAULT_SUBACCOUNT,
+        );
 
-        let args = ICPAccountBalanceArgs {
-            account: account_identifier.as_bytes().to_vec(),
+        let args = AccountBalanceArgs {
+            account: account_identifier,
         };
 
-        // Encode the account identifier in the format required by the ledger
+        // // Encode the account identifier in the format required by the ledger
         let encoded_args = candid::encode_args((args,)).unwrap();
-
         // Perform the query
         let query = self
             .agent
             .query(&canister_id, "account_balance")
             .with_arg(encoded_args) // Pass the encoded account identifier
             .call()
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // self.agent.get_principal().await?;
-        Ok(query)
+        // Decode the response into the BalanceResponse struct
+        let balance_response: BalanceResponse = Decode!(&query, BalanceResponse).unwrap();
+
+        // Extract the balance in e8s
+        Ok(balance_response.e8s)
     }
 
     pub async fn create_wallet(&self) -> Result<Principal, Error> {
@@ -132,11 +147,20 @@ impl KeygateClient {
             .with_canister_id(wallet_id)
             .build()
             .unwrap();
-        let account_id: (String, ) = wallet.query("get_icp_account").build().call().await.unwrap();
+        let account_id: (String,) = wallet
+            .query("get_icp_account")
+            .build()
+            .call()
+            .await
+            .unwrap();
         Ok(account_id.0)
     }
 
-    pub async fn execute_transaction(&self, wallet_id: &str, transaction: &str) -> Result<String, Error> {
+    pub async fn execute_transaction(
+        &self,
+        wallet_id: &str,
+        transaction: &str,
+    ) -> Result<String, Error> {
         panic!("Not implemented");
     }
 }

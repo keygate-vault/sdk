@@ -7,6 +7,7 @@ edition = "2021"
 dotenv = "0.15.0"
 ic-agent = "0.39.0"
 ic-utils = "0.39.0"
+ic-ledger-types = "0.13.0"
 ic-cdk = "0.16.0"
 tokio = { version = "1.40.0", features = ["full"] }
 libflate = "=2.1.0"
