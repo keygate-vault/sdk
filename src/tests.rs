@@ -6,7 +6,8 @@ mod tests {
     async fn test_get_icp_balance() -> Result<()> {
         let identity = load_identity("identity.pem").await?;
         let keygate = KeygateClient::new(identity, "https://ic0.app").await?;
-        let balance = keygate.get_icp_balance().await?;
+        let wallet_id = keygate.create_wallet().await?;
+        let balance = keygate.get_icp_balance(&wallet_id.to_string()).await?;
         assert!(balance > 0);
         Ok(())
     }
