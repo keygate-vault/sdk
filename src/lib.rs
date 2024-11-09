@@ -266,47 +266,49 @@ struct PyKeygateClient {
     keygate: Arc<Mutex<Option<KeygateClient>>>,
 }
 
+impl PyKeygateClient {
+    // Common initialization logic (not exposed to Python)
+    async fn initialize(identity_path: &str, url: &str, keygate: Arc<Mutex<Option<KeygateClient>>>) -> PyResult<()> {
+        let identity = load_identity(identity_path).await?;
+        let client = KeygateClient::new(identity, url).await?;
+        *keygate.lock().unwrap() = Some(client);
+        Ok(())
+    }
+}
+
 #[pymethods]
 impl PyKeygateClient {
-    #[new]
-    fn new(identity_path: &str, url: &str) -> PyResult<Self> {
-        Ok(Self {
-            identity_path: identity_path.to_string(),
-            url: url.to_string(),
-            keygate: Arc::new(Mutex::new(None)),
-        })
-    }
+   #[new]
+   fn new(identity_path: &str, url: &str) -> PyResult<Self> {
+       Ok(Self {
+           identity_path: identity_path.to_string(),
+           url: url.to_string(),
+           keygate: Arc::new(Mutex::new(None)),
+       })
+   }
 
-    fn init<'py>(&'py mut self, py: Python<'py>) -> PyResult<&'py PyAny> {
-        let identity_path = self.identity_path.clone();
-        let url = self.url.clone();
-        
-        // Thread-safe mutable state
-        // Keygate is now a Mutex: meaning that it can be accessed by multiple threads
-        // And it is Arc: meaning that it can be shared between threads
-        // So we can mutate it from multiple threads by locking it
-        // And we can reference it from multiple threads by cloning the Arc (reference counting)
-        let keygate_clone = self.keygate.clone();
-        
-        // Future_into_py takes a future and a Python context
-        // and runs the future in the context of the Python thread
-        // and returns the result of the future to the Python thread.
-        // 
-        // async move { ... } is used to capture the variables by value
-        // and move them into the async block. This is necessary because the
-        // future needs to capture the variables from the surrounding scope
-        // and keep them alive for the duration of the future.
-        //
-        
-        pyo3_asyncio::async_std::future_into_py(py, async move { 
-            let identity = load_identity(&identity_path).await?;
-            let client = KeygateClient::new(identity, &url).await?;
-            
-            // Update through Mutex instead of RefCell
-            *keygate_clone.lock().unwrap() = Some(client);
-            Ok(())
-        })
-    }
+   fn init<'py>(&'py mut self, py: Python<'py>) -> PyResult<&'py PyAny> {
+       let identity_path = self.identity_path.clone();
+       let url = self.url.clone();
+       let keygate = self.keygate.clone();
+       
+       pyo3_asyncio::async_std::future_into_py(py, async move { 
+           Self::initialize(&identity_path, &url, keygate).await
+       })
+   }
+
+   fn init_sync(&mut self) -> PyResult<()> {
+       Python::with_gil(|py| {
+            let event_loop = pyo3_asyncio::async_std::get_current_loop(py)?;
+            let identity_path = self.identity_path.clone();
+            let url = self.url.clone();
+            let keygate = self.keygate.clone();
+
+            pyo3_asyncio::async_std::run_until_complete(event_loop, async move {
+                Self::initialize(identity_path.as_str(), url.as_str(), keygate).await
+            })
+       })
+   }
 }
 
 fn init_test<'py>(py: Python<'py>) -> PyResult<&PyAny> {
@@ -315,6 +317,6 @@ fn init_test<'py>(py: Python<'py>) -> PyResult<&PyAny> {
 
 #[pymodule]
 fn keygate_sdk(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_class::<KeygateClient>()?;
+    m.add_class::<PyKeygateClient>()?;
     Ok(())
 }
