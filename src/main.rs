@@ -1,4 +1,5 @@
-use std::error::Error;
+
+use std::io::Error;
 
 use keygate_sdk::load_identity;
 use keygate_sdk::KeygateClient;

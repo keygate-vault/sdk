@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::io::Error;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use candid::{CandidType, Decode};
 use ic_agent::agent::CallResponse;
@@ -255,4 +257,64 @@ impl KeygateClient {
             )),
         }
     }
+}
+
+#[pyclass]
+struct PyKeygateClient {
+    identity_path: String,
+    url: String,
+    keygate: Arc<Mutex<Option<KeygateClient>>>,
+}
+
+#[pymethods]
+impl PyKeygateClient {
+    #[new]
+    fn new(identity_path: &str, url: &str) -> PyResult<Self> {
+        Ok(Self {
+            identity_path: identity_path.to_string(),
+            url: url.to_string(),
+            keygate: Arc::new(Mutex::new(None)),
+        })
+    }
+
+    fn init<'py>(&'py mut self, py: Python<'py>) -> PyResult<&'py PyAny> {
+        let identity_path = self.identity_path.clone();
+        let url = self.url.clone();
+        
+        // Thread-safe mutable state
+        // Keygate is now a Mutex: meaning that it can be accessed by multiple threads
+        // And it is Arc: meaning that it can be shared between threads
+        // So we can mutate it from multiple threads by locking it
+        // And we can reference it from multiple threads by cloning the Arc (reference counting)
+        let keygate_clone = self.keygate.clone();
+        
+        // Future_into_py takes a future and a Python context
+        // and runs the future in the context of the Python thread
+        // and returns the result of the future to the Python thread.
+        // 
+        // async move { ... } is used to capture the variables by value
+        // and move them into the async block. This is necessary because the
+        // future needs to capture the variables from the surrounding scope
+        // and keep them alive for the duration of the future.
+        //
+        
+        pyo3_asyncio::async_std::future_into_py(py, async move { 
+            let identity = load_identity(&identity_path).await?;
+            let client = KeygateClient::new(identity, &url).await?;
+            
+            // Update through Mutex instead of RefCell
+            *keygate_clone.lock().unwrap() = Some(client);
+            Ok(())
+        })
+    }
+}
+
+fn init_test<'py>(py: Python<'py>) -> PyResult<&PyAny> {
+    pyo3_asyncio::async_std::future_into_py(py, async { Ok(()) })
+}
+
+#[pymodule]
+fn keygate_sdk(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add_class::<KeygateClient>()?;
+    Ok(())
 }
