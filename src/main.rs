@@ -3,12 +3,11 @@ use std::error::Error;
 use keygate_sdk::load_identity;
 use keygate_sdk::KeygateClient;
 use keygate_sdk::ProposeTransactionArgs;
-use keygate_sdk::TransactionType;
 use keygate_sdk::SupportedNetwork;
-
+use keygate_sdk::TransactionType;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), Box<dyn Error>> {
     let identity = load_identity("identity.pem").await?;
     println!("Loaded identity.");
 

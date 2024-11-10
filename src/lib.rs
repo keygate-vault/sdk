@@ -32,6 +32,7 @@ pub async fn load_identity(path: &str) -> Result<Secp256k1Identity, Error> {
 }
 
 #[pyclass]
+#[derive(Clone)]
 pub struct KeygateClient {
     agent: Agent,
 }
