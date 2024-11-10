@@ -9,20 +9,17 @@ use ic_utils::call::{AsyncCall, SyncCall};
 use ic_utils::interfaces::ManagementCanister;
 use ic_utils::Canister;
 use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
 
 use pyo3::prelude::*;
 
 #[cfg(test)]
 mod tests;
 
-pub async fn create_agent(url: &str, is_mainnet: bool) -> Result<Agent, Error> {
-    let agent = Agent::builder().with_url(url).build().unwrap();
-    if !is_mainnet {
-        agent.fetch_root_key().await.unwrap();
-    }
-    Ok(agent)
-}
-
+/// Load an identity from a PEM file.
+/// ## Returns
+/// A [`Result`] containing a [`Secp256k1Identity`] if the identity was loaded successfully, or an [`Error`] if an error occurred.
 pub async fn load_identity(path: &str) -> Result<Secp256k1Identity, Error> {
     let identity = Secp256k1Identity::from_pem_file(path);
     match identity {
@@ -31,6 +28,13 @@ pub async fn load_identity(path: &str) -> Result<Secp256k1Identity, Error> {
     }
 }
 
+/// A client for interacting with the Keygate canister.
+///
+/// ## Features
+/// - Create wallets
+/// - Get account IDs
+/// - Get balances
+/// - Execute transactions
 #[pyclass]
 pub struct KeygateClient {
     agent: Agent,
@@ -55,39 +59,51 @@ struct BalanceResponse {
 }
 
 #[derive(Deserialize, CandidType, Serialize, Debug, Clone, PartialEq)]
-pub enum TransactionType {
-    Swap,
+enum TransactionType {
+    // Swap,
     Transfer,
 }
 #[derive(Deserialize, Serialize, CandidType, Debug, Clone, PartialEq)]
-pub enum SupportedNetwork {
+enum SupportedNetwork {
     ICP,
-    ETH,
+    // ETH,
 }
 
-pub type TokenPath = String;
+type TokenPath = String;
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct ProposeTransactionArgs {
+struct ProposeTransactionArgs {
+    to: String,
+    token: TokenPath,
+    transaction_type: TransactionType,
+    network: SupportedNetwork,
+    amount: f64,
+}
+
+/// Transaction arguments for tranferring in ICP
+///
+/// ## Fields
+/// - `to` - The recipient's account ID
+/// - `amount` - The amount to transfer
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct TransactionArgs {
     pub to: String,
-    pub token: TokenPath,
-    pub transaction_type: TransactionType,
-    pub network: SupportedNetwork,
     pub amount: f64,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct ProposedTransaction {
-    pub id: u64,
-    pub to: String,
-    pub token: TokenPath,
-    pub network: SupportedNetwork,
-    pub amount: f64,
-    pub transaction_type: TransactionType,
-    pub signers: Vec<Principal>,
-    pub rejections: Vec<Principal>,
+struct ProposedTransaction {
+    id: u64,
+    to: String,
+    token: TokenPath,
+    network: SupportedNetwork,
+    amount: f64,
+    transaction_type: TransactionType,
+    signers: Vec<Principal>,
+    rejections: Vec<Principal>,
 }
 
+/// Transaction status after execution
 #[derive(
     CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, strum_macros::IntoStaticStr,
 )]
@@ -100,6 +116,10 @@ pub enum IntentStatus {
 }
 
 impl KeygateClient {
+    /// Create a new Keygate client.
+    /// ## Arguments
+    /// * `identity` - A [`Secp256k1Identity`] that holds the user's identity. It can be created with the [`load_identity`] function.
+    /// * `url` - A string slice that holds the URL of the Keygate canister.
     pub async fn new(identity: Secp256k1Identity, url: &str) -> Result<Self, Error> {
         let agent = Agent::builder()
             .with_url(url)
@@ -110,10 +130,9 @@ impl KeygateClient {
         Ok(Self { agent })
     }
 
+    /// Get the ICP balance of an account.
     pub async fn get_icp_balance(&self, wallet_id: &str) -> Result<u64, Error> {
-        // Define the canister ID for the ledger
         let canister_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
-        // // Replace "your_account_identifier" with the actual account identifier
         let account_identifier = AccountIdentifier::new(
             &Principal::from_str(&wallet_id).unwrap(),
             &DEFAULT_SUBACCOUNT,
@@ -123,27 +142,88 @@ impl KeygateClient {
             account: account_identifier,
         };
 
-        // // Encode the account identifier in the format required by the ledger
         let encoded_args = candid::encode_args((args,)).unwrap();
-        // Perform the query
         let query = self
             .agent
             .query(&canister_id, "account_balance")
-            .with_arg(encoded_args) // Pass the encoded account identifier
+            .with_arg(encoded_args)
             .call()
             .await
             .unwrap();
 
-        // self.agent.get_principal().await?;
-        // Decode the response into the BalanceResponse struct
         let balance_response: BalanceResponse = Decode!(&query, BalanceResponse).unwrap();
 
-        // Extract the balance in e8s
         Ok(balance_response.e8s)
     }
 
+    /// Used to create a new wallet. The wallet is a canister that holds the user's account.
+    /// The wallet ID is written to a `wallets.csv` file. Running this function multiple times
+    /// will create multiple wallets and its IDs will be appended to the file.
+    /// ## Returns
+    /// A [`Principal`] that holds the wallet ID.
+    /// ## The wallet ID is needed to interact with the wallet. Don't lose it.
+    pub async fn create_wallet_write_file(&self) -> Result<Principal, Error> {
+        let management_canister = ManagementCanister::from_canister(
+            Canister::builder()
+                .with_agent(&self.agent)
+                .with_canister_id("aaaaa-aa")
+                .build()
+                .unwrap(),
+        );
+
+        let (new_canister_id,) = management_canister
+            .create_canister()
+            .as_provisional_create_with_amount(None)
+            .with_effective_canister_id(
+                Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
+            )
+            .call_and_wait()
+            .await
+            .unwrap();
+
+        let (status,) = management_canister
+            .canister_status(&new_canister_id)
+            .call_and_wait()
+            .await
+            .unwrap();
+
+        assert_eq!(format!("{}", status.status), "Running");
+
+        let account_wasm = gzip(include_bytes!("./account.wasm").to_vec()).unwrap();
+
+        management_canister
+            .install_code(&new_canister_id, &account_wasm)
+            .call_and_wait()
+            .await
+            .unwrap();
+
+        let canister = Canister::builder()
+            .with_agent(&self.agent)
+            .with_canister_id(new_canister_id)
+            .build()
+            .unwrap();
+
+        let canister_id_str = format!("{}", canister.canister_id());
+        let csv_content = format!("{}\n", canister_id_str);
+
+        let file_path = "./wallets.csv";
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file_path)
+            .unwrap();
+
+        file.write_all(csv_content.as_bytes()).unwrap();
+
+        return Ok(*canister.canister_id());
+    }
+
+    /// Used to create a new wallet. The wallet is a canister that holds the user's account.
+    /// Running this function multiple times will create multiple wallets.
+    /// ## Returns
+    /// A [`Principal`] that holds the wallet ID.
+    /// ## The wallet ID is needed to interact with the wallet. Don't lose it.
     pub async fn create_wallet(&self) -> Result<Principal, Error> {
-        // deploy a new wallet
         let management_canister = ManagementCanister::from_canister(
             Canister::builder()
                 .with_agent(&self.agent)
@@ -187,6 +267,7 @@ impl KeygateClient {
         return Ok(*canister.canister_id());
     }
 
+    /// Get the account ID of your ICP account.
     pub async fn get_icp_account(&self, wallet_id: &str) -> Result<String, Error> {
         let wallet = Canister::builder()
             .with_agent(&self.agent)
@@ -203,10 +284,14 @@ impl KeygateClient {
         Ok(account_id.0)
     }
 
+    /// Execute a transaction in ICP.
+    /// ## Arguments
+    /// * `wallet_id` - The ID of the wallet that holds the account.
+    /// * `transaction` - A [`TransactionArgs`] that holds the transaction details.
     pub async fn execute_transaction(
         &self,
         wallet_id: &str,
-        transaction: &ProposeTransactionArgs,
+        transaction: &TransactionArgs,
     ) -> Result<IntentStatus, Error> {
         let wallet = Canister::builder()
             .with_agent(&self.agent)
@@ -214,10 +299,17 @@ impl KeygateClient {
             .build()
             .unwrap();
 
-        // let encoded_args = candid::encode_args((transaction.clone(),)).unwrap();
+        let complete_transaction = ProposeTransactionArgs {
+            to: transaction.to.clone(),
+            token: "icp:native".to_string(),
+            transaction_type: TransactionType::Transfer,
+            network: SupportedNetwork::ICP,
+            amount: transaction.amount,
+        };
+
         let proposed_transaction: CallResponse<(ProposedTransaction,)> = wallet
             .update("propose_transaction")
-            .with_arg(transaction.clone())
+            .with_arg(complete_transaction.clone())
             .build()
             .call()
             .await
