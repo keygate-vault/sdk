@@ -292,21 +292,8 @@ impl PyKeygateClient {
        let url = self.url.clone();
        let keygate = self.keygate.clone();
        
-       pyo3_asyncio::async_std::future_into_py(py, async move { 
+       pyo3_asyncio::tokio::future_into_py(py, async move { 
            Self::initialize(&identity_path, &url, keygate).await
-       })
-   }
-
-   fn init_sync(&mut self) -> PyResult<()> {
-       Python::with_gil(|py| {
-            let event_loop = pyo3_asyncio::async_std::get_current_loop(py)?;
-            let identity_path = self.identity_path.clone();
-            let url = self.url.clone();
-            let keygate = self.keygate.clone();
-
-            pyo3_asyncio::async_std::run_until_complete(event_loop, async move {
-                Self::initialize(identity_path.as_str(), url.as_str(), keygate).await
-            })
        })
    }
 }

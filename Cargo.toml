@@ -24,4 +24,4 @@ candid = "0.10.10"
 serde = "1.0.214"
 strum_macros = "0.26.2"
 pyo3 = { version = "0.20", features = ["extension-module"] }
-pyo3-asyncio = { version = "0.20", features = ["async-std"] }
+pyo3-asyncio = { version = "0.20", features = ["async-std", "tokio-runtime"] }
