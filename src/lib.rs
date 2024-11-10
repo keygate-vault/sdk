@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::io::Error;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use candid::{CandidType, Decode};
 use ic_agent::agent::CallResponse;
@@ -263,15 +263,15 @@ impl KeygateClient {
 struct PyKeygateClient {
     identity_path: String,
     url: String,
-    keygate: Arc<Mutex<Option<KeygateClient>>>,
+    keygate: Arc<RwLock<Option<KeygateClient>>>,
 }
 
 impl PyKeygateClient {
     // Common initialization logic (not exposed to Python)
-    async fn initialize(identity_path: &str, url: &str, keygate: Arc<Mutex<Option<KeygateClient>>>) -> PyResult<()> {
+    async fn initialize(identity_path: &str, url: &str, keygate: Arc<RwLock<Option<KeygateClient>>>) -> PyResult<()> {
         let identity = load_identity(identity_path).await?;
         let client = KeygateClient::new(identity, url).await?;
-        *keygate.lock().unwrap() = Some(client);
+        *keygate.write().unwrap() = Some(client);
         Ok(())
     }
 }
@@ -283,7 +283,7 @@ impl PyKeygateClient {
        Ok(Self {
            identity_path: identity_path.to_string(),
            url: url.to_string(),
-           keygate: Arc::new(Mutex::new(None)),
+           keygate: Arc::new(RwLock::new(None)),
        })
    }
 
@@ -294,6 +294,26 @@ impl PyKeygateClient {
        
        pyo3_asyncio::tokio::future_into_py(py, async move { 
            Self::initialize(&identity_path, &url, keygate).await
+       })
+   }
+
+   fn create_wallet<'py>(&'py self, py: Python<'py>) -> PyResult<&'py PyAny> {
+       let keygate = self.keygate.clone();
+       
+       pyo3_asyncio::tokio::future_into_py(py, async move {
+            // Get the reference to client before the async block
+            let client = {
+                let guard = keygate.read().unwrap();
+                guard.as_ref()
+                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyException, _>("Client not initialized"))?
+                .clone() // Clone the entire client
+            };
+
+                
+            let principal = client.create_wallet().await
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyException, _>(e.to_string()))?;
+
+            Ok(principal.to_text())
        })
    }
 }

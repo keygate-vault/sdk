@@ -7,4 +7,9 @@ async def main():
     print("Initialized Keygate")
     print("--------------------------------")
 
+    print("Creating a wallet")
+    print(await keygate.create_wallet())
+
+    print("--------------------------------")
+
 asyncio.run(main())
