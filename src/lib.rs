@@ -33,7 +33,7 @@ pub async fn load_identity(path: &str) -> Result<Secp256k1Identity, Error> {
     }
 }
 
-#[pyclass]
+#[derive(Clone)]
 pub struct KeygateClient {
     agent: Agent,
 }
@@ -301,19 +301,17 @@ impl PyKeygateClient {
        let keygate = self.keygate.clone();
        
        pyo3_asyncio::tokio::future_into_py(py, async move {
-            // Get the reference to client before the async block
             let client = {
                 let guard = keygate.read().unwrap();
-                guard.as_ref()
-                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyException, _>("Client not initialized"))?
-                .clone() // Clone the entire client
+                guard.as_ref().cloned().expect("KeygateClient not initialized. Make sure to call init() before using other methods.")
             };
 
-                
-            let principal = client.create_wallet().await
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyException, _>(e.to_string()))?;
+            let created_wallet_principal = client.create_wallet().await;
 
-            Ok(principal.to_text())
+            match created_wallet_principal {
+                Ok(principal) => Ok(principal.to_text()),
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!("Error creating a Keygate wallet: {}", e))),
+            }
        })
    }
 }

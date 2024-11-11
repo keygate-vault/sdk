@@ -1,0 +1,9 @@
+Identity assumed: rmjpb-koq4r-y7uxo-7ywhl-flcpm-5cwus-6pvek-hjyik-hdx6r-y2apn-hqe
+
+Called: SDK create_wallet
+
+
+called `Result::unwrap()` on an `Err` value: UncertifiedReject(RejectResponse { reject_code: CanisterReject, reject_message: 
+"Caller rmjpb-koq4r-y7uxo-7ywhl-flcpm-5cwus-6pvek-hjyik-hdx6r-y2apn-hqe is not allowed to call ic00 method provisional_create_canister_with_cycles", 
+error_code: Some("IC0406") })
+stack backtrace:
