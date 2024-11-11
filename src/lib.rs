@@ -1,5 +1,7 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::io::Error;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -259,11 +261,18 @@ impl KeygateClient {
     }
 }
 
+
+#[derive(Deserialize, Serialize)]
+struct PersistedState {
+    wallet_ids: HashSet<String>,
+}
+
 #[pyclass]
 struct PyKeygateClient {
     identity_path: String,
     url: String,
     keygate: Arc<RwLock<Option<KeygateClient>>>,
+    wallet_ids: Arc<RwLock<HashSet<String>>>,
 }
 
 impl PyKeygateClient {
@@ -272,6 +281,23 @@ impl PyKeygateClient {
         let identity = load_identity(identity_path).await?;
         let client = KeygateClient::new(identity, url).await?;
         *keygate.write().unwrap() = Some(client);
+        Ok(())
+    }
+
+    fn load_wallets(path: &PathBuf) -> HashSet<String> {
+        match std::fs::read_to_string(path) {
+            Ok(content) => serde_json::from_str::<PersistedState>(&content).map(|sw| sw.wallet_ids).unwrap(),
+            Err(_) => HashSet::new(),
+        }
+    }
+
+    fn save_wallets(&self) -> Result<(), std::io::Error> {
+        let wallets = self.wallet_ids.read().unwrap();
+        let state = PersistedState {
+            wallet_ids: wallets.clone(),
+        };
+        let json = serde_json::to_string_pretty(&state)?;
+        std::fs::write("config.json", json)?;
         Ok(())
     }
 }
@@ -284,6 +310,7 @@ impl PyKeygateClient {
            identity_path: identity_path.to_string(),
            url: url.to_string(),
            keygate: Arc::new(RwLock::new(None)),
+           wallet_ids: Arc::new(RwLock::new(Self::load_wallets(&PathBuf::from("config.json")))),
        })
    }
 
@@ -314,6 +341,26 @@ impl PyKeygateClient {
             }
        })
    }
+
+   fn get_icp_balance<'py>(&'py self, wallet_id: &str, py: Python<'py>) -> PyResult<&'py PyAny> {
+        let keygate = self.keygate.clone();
+
+        let wallet_id = wallet_id.to_string();
+
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            let client = {
+                let guard = keygate.read().unwrap();
+                guard.as_ref().cloned().expect("KeygateClient not initialized. Make sure to call init() before using other methods.")
+            };
+
+            let balance = client.get_icp_balance(&wallet_id).await;
+
+            match balance {
+                Ok(balance) => Ok(balance),
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!("Error getting ICP balance: {}", e))),
+            }
+        })
+    }
 }
 
 fn init_test<'py>(py: Python<'py>) -> PyResult<&PyAny> {
