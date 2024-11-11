@@ -8,13 +8,16 @@ async def main():
     print("--------------------------------")
 
     print("Creating a wallet")
-    print(await keygate.create_wallet())
+    wallet_id = await keygate.create_wallet()
+    print(wallet_id)
+
+    print("--------------------------------")
+    print("Getting ICP address")
+    print(await keygate.get_icp_address(wallet_id))
 
     print("--------------------------------")
 
     print("Getting ICP balance")
-    print(await keygate.get_icp_balance(""))
-
-    
+    print(await keygate.get_icp_balance(wallet_id))
 
 asyncio.run(main())

@@ -12,6 +12,7 @@ use ic_ledger_types::{AccountBalanceArgs, AccountIdentifier, DEFAULT_SUBACCOUNT}
 use ic_utils::call::{AsyncCall, SyncCall};
 use ic_utils::interfaces::ManagementCanister;
 use ic_utils::Canister;
+use pyo3::types::PyString;
 use serde::{Deserialize, Serialize};
 
 use pyo3::prelude::*;
@@ -342,10 +343,15 @@ impl PyKeygateClient {
        })
    }
 
-   fn get_icp_balance<'py>(&'py self, wallet_id: &str, py: Python<'py>) -> PyResult<&'py PyAny> {
+   #[pyo3(signature = (wallet_id))]
+   fn get_icp_balance<'py>(&'py self, wallet_id: String, py: Python<'py>) -> PyResult<&'py PyAny> {
+        if wallet_id.trim().is_empty() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Wallet ID cannot be empty"));
+        }
+        
         let keygate = self.keygate.clone();
 
-        let wallet_id = wallet_id.to_string();
+        println!("Getting ICP balance for wallet: {}", wallet_id);
 
         pyo3_asyncio::tokio::future_into_py(py, async move {
             let client = {
@@ -358,6 +364,23 @@ impl PyKeygateClient {
             match balance {
                 Ok(balance) => Ok(balance),
                 Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!("Error getting ICP balance: {}", e))),
+            }
+        })
+    }
+
+    fn get_icp_address<'py>(&'py self, wallet_id: &str, py: Python<'py>) -> PyResult<&'py PyAny> {
+        let keygate = self.keygate.clone();
+        let wallet_id = wallet_id.to_string();
+        let client = {
+            let guard = keygate.read().unwrap();
+            guard.as_ref().cloned().expect("KeygateClient not initialized. Make sure to call init() before using other methods.")
+        };
+
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            let address = client.get_icp_account(&wallet_id).await;
+            match address {
+                Ok(address) => Ok(address),
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!("Error getting ICP address: {}", e))),
             }
         })
     }
