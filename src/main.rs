@@ -2,9 +2,7 @@ use std::error::Error;
 
 use keygate_sdk::load_identity;
 use keygate_sdk::KeygateClient;
-use keygate_sdk::ProposeTransactionArgs;
-use keygate_sdk::SupportedNetwork;
-use keygate_sdk::TransactionType;
+use keygate_sdk::TransactionArgs;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -24,11 +22,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let balance = keygate.get_icp_balance(&wallet_id.to_string()).await?;
     println!("Balance: {:?}", balance);
 
-    let transaction = ProposeTransactionArgs {
+    let transaction = TransactionArgs {
         to: account_id.to_string(),
-        token: "icp:native".to_string(),
-        transaction_type: TransactionType::Transfer,
-        network: SupportedNetwork::ICP,
         amount: f64::from(0),
     };
     let executed_transaction = keygate
