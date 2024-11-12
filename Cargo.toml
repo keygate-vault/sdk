@@ -1,11 +1,15 @@
 [package]
 name = "keygate-sdk"
 version = "0.1.0"
+authors = ["Keygate"]
+homepage = "https://github.com/keygate-vault/sdk"
+repository = "https://github.com/keygate-vault/sdk"
+readme = "README.md"
 edition = "2021"
 
 [lib]
 name = "keygate_sdk"
-crate-type = ["cdylib", "rlib]
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "keygate_sdk"
