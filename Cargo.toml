@@ -1,6 +1,10 @@
 [package]
 name = "keygate-sdk"
 version = "0.1.0"
+authors = ["Keygate"]
+homepage = "https://github.com/keygate-vault/sdk"
+repository = "https://github.com/keygate-vault/sdk"
+readme = "README.md"
 edition = "2021"
 
 [lib]
@@ -26,3 +30,4 @@ strum_macros = "0.26.2"
 pyo3 = { version = "0.20", features = ["extension-module"] }
 pyo3-asyncio = { version = "0.20", features = ["async-std", "tokio-runtime"] }
 serde_json = "1.0.132"
+strum = "0.26.1"
