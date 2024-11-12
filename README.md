@@ -1,10 +1,10 @@
 # Keygate SDK
 
+## Introduction
+
 Keygate is an open-source service that provides a secure and decentralized way to manage your assets. Keygate SDK is a **Rust** and **Python** library that allows developers to interact with the Keygate service.
 
 As of now, Keygate SDK supports the **ICP blockchain**. This SDK provides a simple interface to create wallets, get account information, and execute transactions.
-
-## Introduction
 
 ## Installation
 
