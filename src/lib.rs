@@ -36,6 +36,7 @@ pub async fn load_identity(path: &str) -> Result<Secp256k1Identity, Error> {
 /// - Get balances
 /// - Execute transactions
 #[pyclass]
+#[derive(Clone, Debug)]
 pub struct KeygateClient {
     agent: Agent,
 }
@@ -48,22 +49,41 @@ fn gzip(blob: Vec<u8>) -> Result<Vec<u8>, Error> {
     Ok(encoder.finish().into_result().unwrap())
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(
+    CandidType, Deserialize, Serialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default,
+)]
 struct ICPAccountBalanceArgs {
     account: Vec<u8>,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(
+    CandidType,
+    Deserialize,
+    Serialize,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Debug,
+    Default,
+)]
 struct BalanceResponse {
     e8s: u64,
 }
 
-#[derive(Deserialize, CandidType, Serialize, Debug, Clone, PartialEq)]
+#[derive(
+    Deserialize, CandidType, Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 enum TransactionType {
     // Swap,
     Transfer,
 }
-#[derive(Deserialize, Serialize, CandidType, Debug, Clone, PartialEq)]
+#[derive(
+    Deserialize, Serialize, CandidType, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 enum SupportedNetwork {
     ICP,
     // ETH,
@@ -71,7 +91,7 @@ enum SupportedNetwork {
 
 type TokenPath = String;
 
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, PartialOrd)]
 struct ProposeTransactionArgs {
     to: String,
     token: TokenPath,
@@ -80,18 +100,18 @@ struct ProposeTransactionArgs {
     amount: f64,
 }
 
-/// Transaction arguments for tranferring in ICP
+/// Transaction arguments for transferring in ICP
 ///
 /// ## Fields
 /// - `to` - The recipient's account ID
 /// - `amount` - The amount to transfer
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, PartialOrd, Default)]
 pub struct TransactionArgs {
     pub to: String,
     pub amount: f64,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, PartialOrd)]
 struct ProposedTransaction {
     id: u64,
     to: String,
@@ -105,7 +125,17 @@ struct ProposedTransaction {
 
 /// Transaction status after execution
 #[derive(
-    CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, strum_macros::IntoStaticStr,
+    CandidType,
+    Deserialize,
+    Serialize,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    strum_macros::IntoStaticStr,
 )]
 pub enum IntentStatus {
     Pending(String),
