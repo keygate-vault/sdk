@@ -1,7 +1,7 @@
 [package]
 name = "keygate-sdk"
 version = "0.1.0"
-authors = ["Keygate"]
+authors = ["Vicente Bermudez", "Joaquin Ballara"]
 homepage = "https://github.com/keygate-vault/sdk"
 repository = "https://github.com/keygate-vault/sdk"
 readme = "README.md"
