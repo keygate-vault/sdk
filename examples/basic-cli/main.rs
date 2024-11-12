@@ -1,8 +1,5 @@
 use candid::Principal;
-use keygate_sdk::{
-    load_identity, IntentStatus, KeygateClient, ProposeTransactionArgs, SupportedNetwork,
-    TransactionType,
-};
+use keygate_sdk::{load_identity, IntentStatus, KeygateClient, TransactionArgs};
 use std::io::Write;
 use std::process::Command;
 use std::time::Duration;
@@ -127,11 +124,8 @@ async fn send_transaction(
     amount: &str,
 ) {
     print!("\nSetting up transaction... \n");
-    let transaction = ProposeTransactionArgs {
+    let transaction = TransactionArgs {
         to: address.to_string(),
-        token: "icp:native".to_string(),
-        transaction_type: TransactionType::Transfer,
-        network: SupportedNetwork::ICP,
         amount: amount.parse().unwrap(),
     };
     println!("Sending transaction...\n");
