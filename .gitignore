@@ -26,11 +26,6 @@ Cargo.lock
 
 identity.pem
 
-<<<<<<< HEAD
 .env
 .env.local
-=======
 wallet.csv
-
-.env
->>>>>>> main
