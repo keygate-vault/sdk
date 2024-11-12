@@ -1,10 +1,22 @@
 use candid::Principal;
 use keygate_sdk::{
-    load_identity, KeygateClient, ProposeTransactionArgs, SupportedNetwork, TransactionType,
+    load_identity, IntentStatus, KeygateClient, ProposeTransactionArgs, SupportedNetwork,
+    TransactionType,
 };
+use std::io::Write;
 use std::process::Command;
 use std::time::Duration;
 use tokio::time::sleep;
+
+fn get_string_from_intent_status(status: IntentStatus) -> String {
+    match status {
+        IntentStatus::Pending(s)
+        | IntentStatus::InProgress(s)
+        | IntentStatus::Completed(s)
+        | IntentStatus::Rejected(s)
+        | IntentStatus::Failed(s) => s,
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -58,43 +70,54 @@ async fn main() {
         return;
     }
 
+    println!("\n\nKeygate CLI is ready! Type 'help' for a list of commands.\n");
+
     loop {
         let mut input = String::new();
+        print!("> ");
+        std::io::stdout().flush().unwrap();
         std::io::stdin()
             .read_line(&mut input)
-            .expect("Failed to read line");
+            .expect("\nFailed to read line\n");
         let input: Vec<&str> = input.trim().split(' ').collect();
 
-        match input[1] {
+        match input[0] {
             "balance" => {
                 check_balance(&keygate, wallet_id.clone()).await;
             }
             "transact" => {
-                if input.len() < 4 {
-                    eprintln!("Usage: transact <address> <amount>");
+                if input.len() < 3 {
+                    eprintln!("\nUsage: transact <address> <amount>\n");
                     continue;
                 }
                 send_transaction(&keygate, wallet_id.clone(), input[1], input[2]).await;
             }
             "address" => {
-                println!("Your account ID is: {}", address);
+                println!("\nYour account ID is: {}\n", address);
+            }
+            "help" => {
+                println!("\nAvailable commands:");
+                println!("balance - Check your balance");
+                println!("transact <address> <amount> - Send ICP to an address");
+                println!("address - Get your account ID");
+                println!("exit - Exit the wallet\n");
             }
             "exit" => {
-                println!("Exiting...");
+                println!("\nExiting...\n");
                 break;
             }
-            _ => eprintln!("Unknown wallet command: {}", input.join(" ")),
+            _ => eprintln!("\nUnknown wallet command: {}\n", input.join(" ")),
         }
     }
 }
 
 async fn check_balance(keygate: &KeygateClient, wallet_id: Principal) {
-    print!("Checking balance... ");
+    print!("\nChecking balance... \n");
     let balance = keygate
         .get_icp_balance(&wallet_id.to_string())
         .await
         .unwrap();
-    println!("Your balance is: {:?}", balance);
+    println!("Your balance is: {:?}\n", balance);
 }
 
 async fn send_transaction(
@@ -103,7 +126,7 @@ async fn send_transaction(
     address: &str,
     amount: &str,
 ) {
-    print!("Setting up transaction... ");
+    print!("\nSetting up transaction... \n");
     let transaction = ProposeTransactionArgs {
         to: address.to_string(),
         token: "icp:native".to_string(),
@@ -111,9 +134,13 @@ async fn send_transaction(
         network: SupportedNetwork::ICP,
         amount: amount.parse().unwrap(),
     };
-    println!("Sending transaction... ");
+    println!("Sending transaction...\n");
     let executed_transaction = keygate
         .execute_transaction(&wallet_id.to_string(), &transaction)
-        .await;
-    println!("Transaction sent: {:?}", executed_transaction);
+        .await
+        .unwrap();
+    println!(
+        "Transaction sent: {:?}\n",
+        get_string_from_intent_status(executed_transaction)
+    );
 }
