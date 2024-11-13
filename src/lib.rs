@@ -383,7 +383,6 @@ impl KeygateClient {
     }
 }
 
-
 #[derive(Deserialize, Serialize)]
 struct PersistedState {
     wallet_ids: HashSet<String>,
@@ -397,9 +396,19 @@ struct PyKeygateClient {
     wallet_ids: Arc<RwLock<HashSet<String>>>,
 }
 
+#[pyclass]
+struct PyTransactionArgs {
+    to: String,
+    amount: f64,
+}
+
 impl PyKeygateClient {
     // Common initialization logic (not exposed to Python)
-    async fn initialize(identity_path: &str, url: &str, keygate: Arc<RwLock<Option<KeygateClient>>>) -> PyResult<()> {
+    async fn initialize(
+        identity_path: &str,
+        url: &str,
+        keygate: Arc<RwLock<Option<KeygateClient>>>,
+    ) -> PyResult<()> {
         let identity = load_identity(identity_path).await?;
         let client = KeygateClient::new(identity, url).await?;
         *keygate.write().unwrap() = Some(client);
@@ -408,7 +417,9 @@ impl PyKeygateClient {
 
     fn load_wallets(path: &PathBuf) -> HashSet<String> {
         match std::fs::read_to_string(path) {
-            Ok(content) => serde_json::from_str::<PersistedState>(&content).map(|sw| sw.wallet_ids).unwrap(),
+            Ok(content) => serde_json::from_str::<PersistedState>(&content)
+                .map(|sw| sw.wallet_ids)
+                .unwrap(),
             Err(_) => HashSet::new(),
         }
     }
@@ -426,30 +437,32 @@ impl PyKeygateClient {
 
 #[pymethods]
 impl PyKeygateClient {
-   #[new]
-   fn new(identity_path: &str, url: &str) -> PyResult<Self> {
-       Ok(Self {
-           identity_path: identity_path.to_string(),
-           url: url.to_string(),
-           keygate: Arc::new(RwLock::new(None)),
-           wallet_ids: Arc::new(RwLock::new(Self::load_wallets(&PathBuf::from("config.json")))),
-       })
-   }
+    #[new]
+    fn new(identity_path: &str, url: &str) -> PyResult<Self> {
+        Ok(Self {
+            identity_path: identity_path.to_string(),
+            url: url.to_string(),
+            keygate: Arc::new(RwLock::new(None)),
+            wallet_ids: Arc::new(RwLock::new(Self::load_wallets(&PathBuf::from(
+                "config.json",
+            )))),
+        })
+    }
 
-   fn init<'py>(&'py mut self, py: Python<'py>) -> PyResult<&'py PyAny> {
-       let identity_path = self.identity_path.clone();
-       let url = self.url.clone();
-       let keygate = self.keygate.clone();
-       
-       pyo3_asyncio::tokio::future_into_py(py, async move { 
-           Self::initialize(&identity_path, &url, keygate).await
-       })
-   }
+    fn init<'py>(&'py mut self, py: Python<'py>) -> PyResult<&'py PyAny> {
+        let identity_path = self.identity_path.clone();
+        let url = self.url.clone();
+        let keygate = self.keygate.clone();
 
-   fn create_wallet<'py>(&'py self, py: Python<'py>) -> PyResult<&'py PyAny> {
-       let keygate = self.keygate.clone();
-       
-       pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            Self::initialize(&identity_path, &url, keygate).await
+        })
+    }
+
+    fn create_wallet<'py>(&'py self, py: Python<'py>) -> PyResult<&'py PyAny> {
+        let keygate = self.keygate.clone();
+
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             let client = {
                 let guard = keygate.read().unwrap();
                 guard.as_ref().cloned().expect("KeygateClient not initialized. Make sure to call init() before using other methods.")
@@ -459,17 +472,22 @@ impl PyKeygateClient {
 
             match created_wallet_principal {
                 Ok(principal) => Ok(principal.to_text()),
-                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!("Error creating a Keygate wallet: {}", e))),
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!(
+                    "Error creating a Keygate wallet: {}",
+                    e
+                ))),
             }
-       })
-   }
+        })
+    }
 
-   #[pyo3(signature = (wallet_id))]
-   fn get_icp_balance<'py>(&'py self, wallet_id: String, py: Python<'py>) -> PyResult<&'py PyAny> {
+    #[pyo3(signature = (wallet_id))]
+    fn get_icp_balance<'py>(&'py self, wallet_id: String, py: Python<'py>) -> PyResult<&'py PyAny> {
         if wallet_id.trim().is_empty() {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Wallet ID cannot be empty"));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Wallet ID cannot be empty",
+            ));
         }
-        
+
         let keygate = self.keygate.clone();
 
         println!("Getting ICP balance for wallet: {}", wallet_id);
@@ -484,7 +502,10 @@ impl PyKeygateClient {
 
             match balance {
                 Ok(balance) => Ok(balance),
-                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!("Error getting ICP balance: {}", e))),
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!(
+                    "Error getting ICP balance: {}",
+                    e
+                ))),
             }
         })
     }
@@ -501,7 +522,48 @@ impl PyKeygateClient {
             let address = client.get_icp_account(&wallet_id).await;
             match address {
                 Ok(address) => Ok(address),
-                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!("Error getting ICP address: {}", e))),
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!(
+                    "Error getting ICP address: {}",
+                    e
+                ))),
+            }
+        })
+    }
+
+    fn execute_transaction<'py>(
+        &self,
+        wallet_id: &str,
+        transaction: &PyTransactionArgs,
+        py: Python<'py>,
+    ) -> PyResult<&'py PyAny> {
+        let keygate = self.keygate.clone();
+        let wallet_id = wallet_id.to_string();
+        let transaction: TransactionArgs = TransactionArgs {
+            to: transaction.to.clone(),
+            amount: transaction.amount,
+        };
+        let client = {
+            let guard = keygate.read().unwrap();
+            guard.as_ref().cloned().expect("KeygateClient not initialized. Make sure to call init() before using other methods.")
+        };
+
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            let status = client.execute_transaction(&wallet_id, &transaction).await;
+            match status {
+                Ok(status) => {
+                    let status_str = match status {
+                        IntentStatus::Pending(s) => s,
+                        IntentStatus::InProgress(s) => s,
+                        IntentStatus::Completed(s) => s,
+                        IntentStatus::Rejected(s) => s,
+                        IntentStatus::Failed(s) => s,
+                    };
+                    Ok(status_str)
+                }
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!(
+                    "Error executing transaction: {}",
+                    e
+                ))),
             }
         })
     }
