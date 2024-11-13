@@ -576,5 +576,6 @@ fn init_test<'py>(py: Python<'py>) -> PyResult<&PyAny> {
 #[pymodule]
 fn keygate_sdk(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyKeygateClient>()?;
+    m.add_class::<PyTransactionArgs>()?;
     Ok(())
 }
