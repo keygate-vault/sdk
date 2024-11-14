@@ -28,14 +28,15 @@ class ICPAgent:
         instructions: str,
         functions: List[Callable],
         identity_path: str = "identity.pem",
-        keygate_url: str = "http://localhost:63617"
+        keygate_url: str = "http://localhost:4943"
     ):
         self.name = name
         self.instructions = instructions
         self.functions = {
             "get_balance": self.get_balance,
             "get_wallet_address": self.get_wallet_address,
-            "create_wallet": self.create_wallet
+            "create_wallet": self.create_wallet,
+            "execute_transaction": self.execute_transaction
         }
         self.identity_path = identity_path
         self.keygate_url = keygate_url
@@ -67,6 +68,12 @@ class ICPAgent:
     async def create_wallet(self) -> str:
         """Create a new ICP wallet."""
         return await self.keygate.create_wallet()
+    
+    async def execute_transaction(self, recipient_address: str, amount: float) -> str:
+        """Execute an ICP transaction to a recipient address."""
+        if not self.wallet_id:
+            raise ValueError("Agent not initialized. Call initialize() first.")
+        return await self.keygate.execute_transaction(self.wallet_id, recipient_address, amount)
 
     def format_functions_for_claude(self) -> str:
         """Format available functions as a string for Claude's context."""
@@ -188,6 +195,7 @@ async def run_autonomous_mode(instructions: str, check_interval: int = 60):
         functions=[
             ICPAgent.get_balance,
             ICPAgent.get_wallet_address,
+            ICPAgent.execute_transaction,
             lambda: AutoTasks.monitor_balance(agent)
         ]
     )

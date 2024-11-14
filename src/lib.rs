@@ -16,6 +16,7 @@ use pyo3::types::PyString;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::process::Command;
 
 use pyo3::prelude::*;
 
@@ -396,12 +397,6 @@ struct PyKeygateClient {
     wallet_ids: Arc<RwLock<HashSet<String>>>,
 }
 
-#[pyclass]
-struct PyTransactionArgs {
-    to: String,
-    amount: f64,
-}
-
 impl PyKeygateClient {
     // Common initialization logic (not exposed to Python)
     async fn initialize(
@@ -471,7 +466,30 @@ impl PyKeygateClient {
             let created_wallet_principal = client.create_wallet().await;
 
             match created_wallet_principal {
-                Ok(principal) => Ok(principal.to_text()),
+                Ok(principal) => {
+                    let output = Command::new("dfx")
+                        .args(&[
+                            "ledger",
+                            "transfer",
+                            &client
+                                .get_icp_account(&created_wallet_principal.unwrap().to_text())
+                                .await
+                                .unwrap(),
+                            "--amount",
+                            "100",
+                            "--memo",
+                            "1",
+                            "--network",
+                            "local",
+                            "--identity",
+                            "minter",
+                            "--fee",
+                            "0",
+                        ])
+                        .output()
+                        .expect("failed to execute process");
+                    Ok(principal.to_text())
+                }
                 Err(e) => Err(PyErr::new::<pyo3::exceptions::PyException, _>(format!(
                     "Error creating a Keygate wallet: {}",
                     e
@@ -531,16 +549,17 @@ impl PyKeygateClient {
     }
 
     fn execute_transaction<'py>(
-        &self,
+        &'py self,
         wallet_id: &str,
-        transaction: &PyTransactionArgs,
+        to: &str,
+        amount: f64,
         py: Python<'py>,
     ) -> PyResult<&'py PyAny> {
         let keygate = self.keygate.clone();
         let wallet_id = wallet_id.to_string();
         let transaction: TransactionArgs = TransactionArgs {
-            to: transaction.to.clone(),
-            amount: transaction.amount,
+            to: to.to_string(),
+            amount: amount,
         };
         let client = {
             let guard = keygate.read().unwrap();
@@ -576,6 +595,5 @@ fn init_test<'py>(py: Python<'py>) -> PyResult<&PyAny> {
 #[pymodule]
 fn keygate_sdk(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyKeygateClient>()?;
-    m.add_class::<PyTransactionArgs>()?;
     Ok(())
 }

@@ -2,7 +2,7 @@ import keygate_sdk
 import asyncio
 
 async def main():
-    keygate = keygate_sdk.PyKeygateClient(identity_path="identity.pem", url="http://localhost:54614")
+    keygate = keygate_sdk.PyKeygateClient(identity_path="identity.pem", url="http://localhost:4943")
     await keygate.init()
     print("Initialized Keygate")
     print("--------------------------------")
@@ -23,10 +23,6 @@ async def main():
     print("--------------------------------")
 
     print("Transferring ICP")
-    transaction_args = keygate_sdk.PyTransactionArgs(
-        to=await keygate.get_icp_address(wallet_id),
-        amount=0.001
-    )
-    print(await keygate.execute_transaction(wallet_id, transaction_args))
+    print(await keygate.execute_transaction(wallet_id, await keygate.get_icp_address(wallet_id), 100))
 
 asyncio.run(main())
