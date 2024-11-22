@@ -30,4 +30,7 @@ serde_cbor = "0.11.0"
 candid = "0.10.10"
 serde = "1.0.214"
 strum_macros = "0.26.2"
-pyo3 = { version = "0.22.5", features = ["extension-module"] }
+pyo3 = { version = "0.20", features = ["extension-module"] }
+pyo3-asyncio = { version = "0.20", features = ["async-std", "tokio-runtime"] }
+serde_json = "1.0.132"
+strum = "0.26.1"

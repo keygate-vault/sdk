@@ -1,11 +1,11 @@
-use std::error::Error;
+
 
 use keygate_sdk::load_identity;
 use keygate_sdk::KeygateClient;
 use keygate_sdk::TransactionArgs;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let identity = load_identity("identity.pem").await?;
     println!("Loaded identity.");
 
