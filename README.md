@@ -18,7 +18,7 @@ Add the following to your `Cargo.toml` file:
 [dependencies]
 keygate = "..."
 ```
-
+ 
 ### Python
 
 Open a terminal and run the following command:
