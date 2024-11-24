@@ -1,121 +1,191 @@
+> This SDK is **stable** and ready for production use. For support, please open an issue in this repository.
+
+[![Internet Computer portal](https://img.shields.io/badge/InternetComputer-grey?logo=internet%20computer&style=for-the-badge)](https://internetcomputer.org)
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?logo=github&style=for-the-badge)](LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/keygate-sdk.svg?style=for-the-badge&logo=rust)](https://crates.io/crates/keygate-sdk)
+[![PyPI version](https://img.shields.io/pypi/v/keygate-sdk.svg?style=for-the-badge&logo=python)](https://pypi.org/project/keygate-sdk/)
+
 # Keygate SDK
 
-A Rust SDK for interacting with Internet Computer Protocol (ICP) wallets through the Keygate canister. This SDK provides a simple interface for creating and managing ICP wallets, checking balances, and executing transactions.
+A comprehensive Rust SDK for the Internet Computer Protocol (ICP), enabling seamless integration with Keygate's multisignature infrastructure. Create and manage ICP wallets, handle transactions, and build secure multi-party applications with ease.
+
+## Overview
+
+Keygate SDK provides a type-safe, efficient interface to interact with the Keygate ecosystem on the Internet Computer Protocol. Built with Rust's robust type system and async capabilities, it offers both low-level access to ICP operations and high-level abstractions for common wallet management tasks.
+
+## System Architecture
+
+```mermaid
+block-beta
+  columns 1
+    block:SDK_INTERFACE
+      rust["Rust API<br/>Native Interface"]
+      python["Python Bindings<br/>PyO3 Integration"]
+    end
+    space
+    block:CORE
+      client["KeygateClient<br/>Core Implementation"]
+      adapters["Blockchain Adapters<br/>Protocol Support"]
+    end
+    space
+    block:INFRASTRUCTURE
+      keygate["Keygate Service<br/>Canister Interface"]
+      icp["ICP Network<br/>Transaction Processing"]
+    end
+    rust --> client
+    python --> client
+    client --> adapters
+    adapters --> keygate
+    keygate --> icp
+    style client stroke:#00ffcc,stroke-width:2px
+    style adapters stroke:#00ffcc,stroke-width:2px
+    style rust stroke:#00ffcc,stroke-width:2px
+```
 
 ## Features
 
-- Create new ICP wallets (with optional CSV logging)
-- Get wallet account IDs
-- Check ICP balances
-- Execute ICP transactions
-- Python bindings through PyO3
+- 🔐 **Secure Wallet Management**
+  - Create and manage ICP wallets
+  - Optional CSV logging for wallet tracking
+  - Multi-signature support
+  
+- 💰 **Transaction Operations**
+  - Balance checking
+  - Transaction execution
+  - Status tracking
+  
+- 🔄 **Cross-Language Support**
+  - Native Rust implementation
+  - Python bindings via PyO3
+  
+- 🛡️ **Enterprise Features**
+  - Error handling
+  - Type safety
+  - Async support
 
-## Installation
+## Quick Start
 
-Add this to your `Cargo.toml`:
-
+Add to your `Cargo.toml`:
 ```toml
 [dependencies]
 keygate-sdk = "0.1.0"
 ```
 
-## Usage
-
-### Creating a Client
+### Basic Usage
 
 ```rust
 use keygate_sdk::{KeygateClient, load_identity};
 
 #[tokio::main]
 async fn main() {
-    // Load identity from PEM file
-    let identity = load_identity("path/to/identity.pem").await.unwrap();
+    // Initialize client
+    let identity = load_identity("path/to/identity.pem").await?;
+    let client = KeygateClient::new(identity, "https://your-keygate-url").await?;
+
+    // Create a wallet
+    let wallet_id = client.create_wallet().await?;
     
-    // Create client
-    let client = KeygateClient::new(identity, "https://your-keygate-url").await.unwrap();
+    // Execute a transaction
+    let transaction = TransactionArgs {
+        to: "recipient_account_id".to_string(),
+        amount: 1.5, // Amount in ICP
+    };
+    
+    let status = client
+        .execute_transaction(&wallet_id.to_string(), &transaction)
+        .await?;
 }
 ```
 
-### Creating a Wallet
+## Transaction Lifecycle
 
-```rust
-// Create wallet and save ID to wallets.csv
-let wallet_id = client.create_wallet_write_file().await.unwrap();
-
-// Create wallet without saving to file
-let wallet_id = client.create_wallet().await.unwrap();
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Create
+    Pending --> InProgress: Process
+    InProgress --> Completed: Success
+    InProgress --> Failed: Error
+    InProgress --> Rejected: Denied
+    Completed --> [*]
+    Failed --> [*]
+    Rejected --> [*]
 ```
 
-### Getting Account Information
+## API Reference
 
+### Wallet Operations
 ```rust
-// Get ICP account ID
-let account_id = client.get_icp_account(&wallet_id.to_string()).await.unwrap();
+// Create wallet with logging
+let wallet_id = client.create_wallet_write_file().await?;
 
-// Get ICP balance
-let balance = client.get_icp_balance(&wallet_id.to_string()).await.unwrap();
+// Get account information
+let account_id = client.get_icp_account(&wallet_id).await?;
+let balance = client.get_icp_balance(&wallet_id).await?;
 ```
 
-### Executing Transactions
+### Python Integration
+```python
+from keygate_sdk import KeygateClient
 
-```rust
-use keygate_sdk::TransactionArgs;
-
-let transaction = TransactionArgs {
-    to: "recipient_account_id".to_string(),
-    amount: 1.5, // Amount in ICP
-};
-
-let status = client
-    .execute_transaction(&wallet_id.to_string(), &transaction)
-    .await
-    .unwrap();
+client = KeygateClient.from_pem("identity.pem", "https://keygate-url")
+wallet_id = client.create_wallet()
 ```
 
-## Transaction Status
+## Security Best Practices
 
-Transactions can have the following statuses:
+- 🔒 Secure PEM file storage
+- 📝 Regular wallet ID backups
+- ✅ Transaction verification
+- 🔐 Access control implementation
+- 🔄 Status monitoring
 
-- `Pending`: Transaction is waiting to be processed
-- `InProgress`: Transaction is being processed
-- `Completed`: Transaction has been successfully completed
-- `Rejected`: Transaction was rejected
-- `Failed`: Transaction failed to process
-
-## Error Handling
-
-The SDK uses Rust's standard `Error` type for error handling. All main functions return a `Result<T, Error>` which should be properly handled in your application.
-
-## Python Bindings
-
-This SDK includes Python bindings through PyO3, allowing you to use the SDK in Python applications. Documentation for Python usage will be provided separately.
-
-## Security Considerations
-
-- Keep your PEM file secure and never share it
-- Store wallet IDs safely - they are required for all wallet operations
-- Always verify transaction details before execution
-
-## Development
+## Development Setup
 
 ### Prerequisites
 
-- Rust 1.54 or higher
+- Rust 1.54+
 - Cargo
-- An Internet Computer identity (PEM file)
-- Access to a Keygate canister
+- ICP identity
+- Keygate access
 
-### Building
-
-```bash
-cargo build
-```
-
-### Testing
+### Build and Test
 
 ```bash
+# Build the SDK
+cargo build --release
+
+# Run tests
 cargo test
+
+# Build Python wheels
+cargo build --features python-bindings
 ```
+
+## Troubleshooting
+
+Common issues and solutions:
+- Identity loading failures
+- Network connectivity
+- Transaction status handling
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 ## License
-MIT License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- 📖 [Documentation](https://docs.keygate.io)
+- 💬 [Discord Community](https://discord.gg/keygate)
+- 📧 [Email Support](mailto:support@keygate.io)
+
+---
+
+<div align="center">
+  
+**[Website](https://keygate.io)** | **[Documentation](https://docs.keygate.io)** | **[Examples](./examples)**
+
+</div>
