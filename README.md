@@ -2,8 +2,9 @@
 
 [![Internet Computer portal](https://img.shields.io/badge/InternetComputer-grey?logo=internet%20computer&style=for-the-badge)](https://internetcomputer.org)
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?logo=github&style=for-the-badge)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/v/keygate-sdk.svg?style=for-the-badge&logo=rust)](https://crates.io/crates/keygate-sdk)
-[![PyPI version](https://img.shields.io/pypi/v/keygate-sdk.svg?style=for-the-badge&logo=python)](https://pypi.org/project/keygate-sdk/)
+
+
+![ezgif-5-dfd7aa9f99](https://github.com/user-attachments/assets/c63e8461-a5fd-4485-85e1-9e693d395fcf)
 
 # Keygate SDK
 
