@@ -18,34 +18,35 @@ Keygate SDK provides a type-safe, efficient interface to interact with the Keyga
 ```mermaid
 block-beta
   columns 1
-    block:SDK_INTERFACE
+    block:SDK_LAYER
       rust["Rust API<br/>Native Interface"]
       python["Python Bindings<br/>PyO3 Integration"]
     end
     space
     block:CORE
       client["KeygateClient<br/>Core Implementation"]
-      adapters["Blockchain Adapters<br/>Protocol Support"]
+      vault["Keygate Vault<br/>Multi-signature System"]
     end
     space
-    block:INFRASTRUCTURE
-      keygate["Keygate Service<br/>Canister Interface"]
-      icp["ICP Network<br/>Transaction Processing"]
+    block:BLOCKCHAIN_ADAPTERS
+      icp["ICP Protocol<br/>Native & ICRC Tokens"]
+      evm["EVM Chains<br/>L1 & L2 Networks"]
     end
     rust --> client
     python --> client
-    client --> adapters
-    adapters --> keygate
-    keygate --> icp
+    client --> vault
+    vault --> icp
+    vault --> evm
     style client stroke:#00ffcc,stroke-width:2px
-    style adapters stroke:#00ffcc,stroke-width:2px
-    style rust stroke:#00ffcc,stroke-width:2px
+    style vault stroke:#00ffcc,stroke-width:2px
+    style icp stroke:#00ffcc,stroke-width:2px
+    style evm stroke:#00ffcc,stroke-width:2px
 ```
 
 ## Features
 
 - 🔐 **Secure Wallet Management**
-  - Create and manage ICP wallets
+  - Create and manage ICP and Ethereum L1 and L2 wallets
   - Optional CSV logging for wallet tracking
   - Multi-signature support
   
@@ -57,11 +58,6 @@ block-beta
 - 🔄 **Cross-Language Support**
   - Native Rust implementation
   - Python bindings via PyO3
-  
-- 🛡️ **Enterprise Features**
-  - Error handling
-  - Type safety
-  - Async support
 
 ## Quick Start
 
@@ -131,14 +127,6 @@ client = KeygateClient.from_pem("identity.pem", "https://keygate-url")
 wallet_id = client.create_wallet()
 ```
 
-## Security Best Practices
-
-- 🔒 Secure PEM file storage
-- 📝 Regular wallet ID backups
-- ✅ Transaction verification
-- 🔐 Access control implementation
-- 🔄 Status monitoring
-
 ## Development Setup
 
 ### Prerequisites
@@ -160,13 +148,6 @@ cargo test
 # Build Python wheels
 cargo build --features python-bindings
 ```
-
-## Troubleshooting
-
-Common issues and solutions:
-- Identity loading failures
-- Network connectivity
-- Transaction status handling
 
 ## Contributing
 
