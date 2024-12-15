@@ -26,6 +26,6 @@ Cargo.lock
 
 identity.pem
 
-wallet.csv
-
 .env
+.env.local
+wallet.csv
